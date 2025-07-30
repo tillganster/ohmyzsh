@@ -180,6 +180,39 @@ alias kej='kubectl edit job'
 alias kdj='kubectl describe job'
 alias kdelj='kubectl delete job'
 
+
+function kxsec(){                                                                                                                                                                                                                              
+  tmpl='{{range $k,$v := .data}}{{printf "%s: " $k}}{{if not $v}}{{$v}}{{else}}{{$v | base64decode}}{{end}}{{"\n"}}{{end}}'                                                                                                                    
+  # if second parameter is set get the specific key from the secret                                                                                                                                                                                                 
+  if [ -n "$2" ]; then                                                                                                                                                                                                                         
+    tmpl="{{ index .data \"$2\"| base64decode }}"                                                                                                                                                                                              
+  fi                                                                                                                                                                                                                                           
+  k get secret $1  -o go-template="$tmpl"                                                                                                                                                                                                      
+}                 
+
+
+_kxsec() {
+  local -a secrets
+  secrets=(${(f)"$(kubectl get secrets -o jsonpath='{.items[*].metadata.name}')"})
+  
+  # Completion for keys in the selected secret
+  _secret_keys() {
+    local secret=$words[2]
+    local -a keys
+    if [[ -n $secret ]]; then
+      keys=(${(f)"$(kubectl get secret $secret -o jsonpath='{.data}' | jq -r 'keys[]' 2>/dev/null)"})
+      _describe 'key' keys
+    fi
+  }
+
+  _arguments \
+    "1:secret-name:(${secrets[*]})" \
+    "2:key-name:_secret_keys" \
+    '*:file:_files'
+}
+compdef _kxsec kxsec
+    
+
 # Utility print functions (json / yaml)
 function _build_kubectl_out_alias {
   setopt localoptions norcexpandparam
@@ -199,4 +232,5 @@ function _build_kubectl_out_alias {
 _build_kubectl_out_alias "kj"  'kubectl "$@" -o json | jq'
 _build_kubectl_out_alias "kjx" 'kubectl "$@" -o json | fx'
 _build_kubectl_out_alias "ky"  'kubectl "$@" -o yaml | yh'
+
 unfunction _build_kubectl_out_alias
